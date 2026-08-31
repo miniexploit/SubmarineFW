@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Submarine Tracker - GPS to Map</title>
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script>
+    let map;
+    let marker;
+    let pathCoordinates = [];
+    let submarinePath;
+
+    function initMap() {
+        // Center directly on Hồ Gươm (southern half)
+        const initialLocation = { lat: 21.027239, lng: 105.851663};
+
+        // Create Map
+        map = new google.maps.Map(document.getElementById("map"), {
+            zoom: 17,
+            center: initialLocation,
+            mapTypeId: "hybrid"
+        });
+
+        // Create Submarine Marker
+        marker = new google.maps.Marker({
+            position: initialLocation,
+            map: map,
+            title: "Submarine Location"
+        });
+
+        // Create Polyline (submarine trail)
+        submarinePath = new google.maps.Polyline({
+            path: pathCoordinates,
+            geodesic: true,
+            strokeColor: "#00FFFF",   // cyan sonar style
+            strokeOpacity: 1.0,
+            strokeWeight: 3,
+            map: map
+        });
+
+        connectWebSocket();
+    }
+
+    function updateMarkerPosition(lat, lng) {
+        const newPosition = { lat: lat, lng: lng };
+
+        // Move submarine
+        marker.setPosition(newPosition);
+
+        // Add position to path
+        pathCoordinates.push(newPosition);
+
+        // Update polyline
+        submarinePath.setPath(pathCoordinates);
+    }
+
+    function connectWebSocket() {
+        const ws = new WebSocket("ws://localhost:8765");
+
+        ws.onopen = function() {
+            console.log("WebSocket connection established.");
+        };
+
+        ws.onmessage = function(event) {
+            console.log("Received data from server:", event.data);
+
+            const coords = event.data.split(",");
+
+            if (coords.length === 2) {
+                const lat = parseFloat(coords[0]);
+                const lng = parseFloat(coords[1]);
+
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    updateMarkerPosition(lat, lng);
+                }
+            }
+        };
+
+        ws.onclose = function() {
+            console.log("WebSocket connection closed. Retrying in 3 seconds...");
+            setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = function(err) {
+            console.error("WebSocket error observed:", err);
+        };
+    }
+</script>
+
+<script async
+    src="https://maps.googleapis.com/maps/api/js?key=APIKEY&callback=initMap&loading=async">
+</script>
+
+</body>
+</html>
